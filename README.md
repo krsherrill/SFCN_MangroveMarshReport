@@ -1,2 +1,2 @@
-# SFCN_MangroveMarshReporting
+# SFCN_MangroveMarshReport
 Data Export and Reporting Script for South Florida Caribbean Network Mangrove Marsh Protocol
