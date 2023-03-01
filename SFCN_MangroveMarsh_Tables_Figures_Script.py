@@ -167,9 +167,36 @@ def main():
 def SummarizeFigure8_1(inDF):
     try:
 
+        # Define Average Distance Meters
+        out_GroupByMean = inDF.groupby(['Event_Group_ID', 'Segment']).mean()
+        outDf_GroupByMean = out_GroupByMean.reset_index()
+        # Rename
+        outDf_GroupByMean.rename(columns={'Distance': 'AverageDist_M'}, inplace=True)
 
+        # Create output DataFrame - will be joining to this
+        outDf_8pt1 = outDf_GroupByMean[['Event_Group_ID', 'Segment', 'AverageDist_M']]
 
-        #Create the By Segment Data Frame via group By
+        # Define Standard Error
+        out_GroupBySE = inDF.groupby(['Event_Group_ID', 'Segment']).sem()
+        outDf_GroupBySE = out_GroupBySE.reset_index()
+        # Rename
+        outDf_GroupBySE.rename(columns={'Distance': 'StandardError'}, inplace=True)
+
+        # Define the Event_Group_ID, Event_ID, Site_ID and Visit Type fields via a join on 'Site_Name and Site ID fields
+        outDf_8pt1_j1 = pd.merge(outDf_8pt1, outDf_GroupBySE, how='inner', left_on='Event_Group_ID', right_on='Event_Group_ID', suffixes=(None, "_Right"))
+
+        # Delete fields 'Segment_Right' and Assesment
+        outDf_8pt1_j1.drop(columns=['Segment_Right', 'Assessment'], inplace=True)
+
+        #Calculate the Confidence Interval Upper 955 and Lower 95%.
+        outVal = calc_CI95(inDF)
+        if outVal[0].lower() != "success function":
+            print("WARNING - Function calc_CI95 - Failed - Exiting Script")
+            exit()
+        else:
+            print("Success - Function calc_CI95")
+            outDF2 = outVal[1]
+
 
 
 
@@ -206,7 +233,19 @@ def SummarizeFigure8_1(inDF):
 
 
 
+#Calculate the Confidence Interval Upper 955 and Lower 95%.
+def calc_CI95(inDF):
 
+    try:
+
+
+
+
+    except:
+        messageTime = timeFun()
+        print("Error on calc_CI95 Function - " + visitType + " - " + messageTime)
+        traceback.print_exc(file=sys.stdout)
+        return "Failed function - 'calc_CI95'"
 
 
 
@@ -238,10 +277,6 @@ def defineRecords_MarkerData(inDF):
         print("Error on defineRecords Function - " + visitType + " - " + messageTime)
         traceback.print_exc(file=sys.stdout)
         return "Failed function - 'defineRecords'"
-
-
-
-
 
 
 #Connect to Access DB and perform defined query - return query in a dataframe
