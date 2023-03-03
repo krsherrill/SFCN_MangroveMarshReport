@@ -7,6 +7,8 @@
 # by event/segment fo the SOP 8 table 1 summary tables. Confidence Intervals are defined using a Student T Distribution with Student T defiend as: np.abs(t.ppf((1 - confidence) / 2, dof)).
 
 # Logic can be added to define the confidence interval using a Boot Strapped estimate as well - not implemented as of 3/3/2023.
+# 2) Extract Mangrove Marsh Distance Records table vegetation cover records - Pivot/Cross Tab by Community Type (Marsh or Mangrove), Vegetation Type Shrub, Herb, Tree, and Scientific Name
+# #Records for table SOP8-2
 
 # Dependences:
 # Python version 3.9
@@ -122,10 +124,18 @@ def main():
             print("Success - Function SummarizeFigure8_1")
             outDF2 = outVal[1]
 
+        ########################
+        # Functions for Table 8-2  - Species Data by Transect.
+        ########################
 
-
-
-
+        #
+        outVal = defineRecords_VegCoverBySegment(inDB)
+        if outVal[0].lower() != "success function":
+            print("WARNING - Function defineRecords_MarkerData - Failed - Exiting Script")
+            exit()
+        else:
+            print("Success - Function defineRecords_MarkerData")
+            outDF = outVal[1]
 
 
 
@@ -245,11 +255,9 @@ def SummarizeFigure8_1(inDF):
         outDf_8pt1_j4.drop(columns=['DOF','t_crit'], inplace=True)
 
         #Export Table to Excel
-        # Export DateFrame with Records that are Null
         dateString = date.today().strftime("%Y%m%d")
         # Define Export .csv file
         outFull = outputDir + "\MangroveMarsh_Export_" + dateString + ".xlsx"
-
 
         #Export
         outDf_8pt1_j4.to_excel(outFull, sheet_name = 'SOP8-1', index=False)
@@ -300,8 +308,62 @@ def calc_CI(inDF, confidence):
         return "Failed function - 'calc_CI95'"
 
 
+#Extract Mangrove Marsh Distance Records table vegetation cover records - Pivot/Cross Tab by Community Type (Marsh or Mangrove), Vegetation Type Shrub, Herb, Tree, and Scientific Name
+#Records for table SOP8-2, export to the output Excel File
 
-#Extract Mangrove Marsh Distance Records table 'tbl_MarkerData' - Might want to add option for Subsetting table by Year?
+def defineRecords_VegCoverBySegment(inDF):
+    try:
+        inQuery = "TRANSFORM Avg(tbl_MarkerData_Vegetation.PercentCover) AS AvgOfPercentCover"\
+            " SELECT tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
+            " FROM tbl_Locations INNER JOIN (((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)" \
+            " AND (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)) INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID) AND (tbl_Events.Event_ID"\
+            " = tbl_MarkerData.Event_ID)) INNER JOIN (tbl_MarkerData_Vegetation LEFT JOIN tlu_Vegetation ON tbl_MarkerData_Vegetation.SpeciesCode = tlu_Vegetation.SpeciesCode) ON"\
+            " (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID) AND (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID)) ON tbl_Locations.Location_ID = tbl_Events.Location_ID"\
+            " WHERE ((Not (tbl_MarkerData_Vegetation.PercentCover) Is Null) AND ((tbl_Events.Event_Type)='Marker Visit'))"\
+            " GROUP BY tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
+            " PIVOT Int(Replace([Segment],'Segment_',''));"\
+
+        outVal = connect_to_AcessDB(inQuery, inDB)
+        if outVal[0].lower() != "success function":
+            messageTime = timeFun()
+            print("WARNING - Function defineRecords_VegCoverBySegment - " + messageTime + " - Failed - Exiting Script")
+            exit()
+        else:
+
+            outDF = outVal[1]
+            messageTime = timeFun()
+            scriptMsg = "Success:  defineRecords_VegCoverBySegment" + messageTime
+            print(scriptMsg)
+
+            # Export Table to Excel
+            dateString = date.today().strftime("%Y%m%d")
+            # Define Export .csv file
+            outFull = outputDir + "\MangroveMarsh_Export_" + dateString + ".xlsx"
+
+            #Append DataFrame to existing excel file
+            with pd.ExcelWriter(outFull, mode='a', engine="openpyxl") as writer:
+                outDF.to_excel(writer, sheet_name='SOP8-2', index=False)
+
+            messageTime = timeFun()
+            scriptMsg = ("Successfully Exported Table 8-2 to: " + outFull + " - " + messageTime)
+            print(scriptMsg)
+
+            logFile = open(logFileName, "a")
+            logFile.write(scriptMsg + "\n")
+            logFile.close()
+
+
+
+            return "success function", outDF
+
+    except:
+        messageTime = timeFun()
+        print("Error on defineRecords_VegCoverBySegment Function - " + messageTime)
+        traceback.print_exc(file=sys.stdout)
+        return "Failed function - 'defineRecords'"
+
+
+#Extract Mangrove Marsh Distance Records table 'tbl_MarkerData' where Event Type = 'Marker Visit'
 def defineRecords_MarkerData(inDF):
     try:
         inQuery = "SELECT tbl_Event_Group.Event_Group_ID, tbl_Event_Group.Event_Group_Name, tbl_Event_Group.Start_Date, tbl_Event_Group.End_Date, tbl_Event_Group.Assessment, tbl_Events.Event_Type,"\
@@ -326,7 +388,7 @@ def defineRecords_MarkerData(inDF):
 
     except:
         messageTime = timeFun()
-        print("Error on defineRecords Function - " + visitType + " - " + messageTime)
+        print("Error on defineRecords_MarkderData Function - " + messageTime)
         traceback.print_exc(file=sys.stdout)
         return "Failed function - 'defineRecords'"
 
