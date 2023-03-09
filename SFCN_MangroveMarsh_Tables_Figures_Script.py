@@ -128,19 +128,23 @@ def main():
         # Functions for Table 8-2  - Species Data by Transect.
         ########################
 
-        #
+        #Summarize via a CrossTab/Pivot Table the Average Vegetation By Segment, Community Type and Vegetation Type (Scale is Segment - multiple points)
         outVal = defineRecords_VegCoverBySegment(inDB)
         if outVal[0].lower() != "success function":
-            print("WARNING - Function defineRecords_MarkerData - Failed - Exiting Script")
+            print("WARNING - Function defineRecords_VegCoverBySegment - Failed - Exiting Script")
             exit()
         else:
-            print("Success - Function defineRecords_MarkerData")
+            print("Success - Function defineRecords_VegCoverBySegment")
             outDF = outVal[1]
 
-
-
-
-
+        #Summarize via a CrossTab/Pivot Table the Sum Vegetation By Location Name (i.e. Point on Segment), Community Type and Vegetation Type (Scale is Point - single value)
+        outVal = defineRecords_VegCoverByPoint(inDB)
+        if outVal[0].lower() != "success function":
+            print("WARNING - Function defineRecords_VegCoverByPoint - Failed - Exiting Script")
+            exit()
+        else:
+            print("Success - Function defineRecords_VegCoverByPoint")
+            outDF = outVal[1]
 
         messageTime = timeFun()
         scriptMsg = "Successfully Finished Processing - SFCN_MangroveMash_Tables_Figures - " + messageTime
@@ -308,9 +312,59 @@ def calc_CI(inDF, confidence):
         return "Failed function - 'calc_CI95'"
 
 
+# Summarize via a CrossTab/Pivot Table the Sum Vegetation By Location Name (i.e. Point on Segment), Community Type and Vegetation Type (Scale is Point - single value)
+def defineRecords_VegCoverByPoint(inDF):
+    try:
+        inQuery = "TRANSFORM Sum(tbl_MarkerData_Vegetation.PercentCover) AS SumOfPercentCover"\
+            " SELECT tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
+            " FROM tbl_Locations INNER JOIN (((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)"\
+            " AND (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)) INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)"\
+            " AND (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)) INNER JOIN (tbl_MarkerData_Vegetation LEFT JOIN tlu_Vegetation ON tbl_MarkerData_Vegetation.SpeciesCode"\
+            " = tlu_Vegetation.SpeciesCode) ON (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID) AND (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID))"\
+            " ON tbl_Locations.Location_ID = tbl_Events.Location_ID WHERE ((Not (tbl_MarkerData_Vegetation.PercentCover) Is Null) AND ((tbl_Events.Event_Type)='Marker Visit'))" \
+            " GROUP BY tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName" \
+            " PIVOT tbl_Locations.Location_Name;"
+
+        outVal = connect_to_AcessDB(inQuery, inDB)
+        if outVal[0].lower() != "success function":
+            messageTime = timeFun()
+            print("WARNING - Function defineRecords_VegCoverBySegment - " + messageTime + " - Failed - Exiting Script")
+            exit()
+        else:
+
+            outDF = outVal[1]
+            messageTime = timeFun()
+            scriptMsg = "Success:  defineRecords_VegCoverBySegment" + messageTime
+            print(scriptMsg)
+
+            # Export Table to Excel
+            dateString = date.today().strftime("%Y%m%d")
+            # Define Export .csv file
+            outFull = outputDir + "\MangroveMarsh_Export_" + dateString + ".xlsx"
+
+            #Append DataFrame to existing excel file
+            with pd.ExcelWriter(outFull, mode='a', engine="openpyxl") as writer:
+                outDF.to_excel(writer, sheet_name='SOP8-2ByPoint', index=False)
+
+            messageTime = timeFun()
+            scriptMsg = ("Successfully Exported Table 8-2ByPoint to: " + outFull + " - " + messageTime)
+            print(scriptMsg)
+
+            logFile = open(logFileName, "a")
+            logFile.write(scriptMsg + "\n")
+            logFile.close()
+
+            return "success function", outDF
+
+    except:
+        messageTime = timeFun()
+        print("Error on defineRecords_VegCoverByPoint Function - " + messageTime)
+        traceback.print_exc(file=sys.stdout)
+        return "Failed function - 'defineRecords'"
+
+
 #Extract Mangrove Marsh Distance Records table vegetation cover records - Pivot/Cross Tab by Community Type (Marsh or Mangrove), Vegetation Type Shrub, Herb, Tree, and Scientific Name
 #Records for table SOP8-2, export to the output Excel File
-
 def defineRecords_VegCoverBySegment(inDF):
     try:
         inQuery = "TRANSFORM Avg(tbl_MarkerData_Vegetation.PercentCover) AS AvgOfPercentCover"\
@@ -342,17 +396,15 @@ def defineRecords_VegCoverBySegment(inDF):
 
             #Append DataFrame to existing excel file
             with pd.ExcelWriter(outFull, mode='a', engine="openpyxl") as writer:
-                outDF.to_excel(writer, sheet_name='SOP8-2', index=False)
+                outDF.to_excel(writer, sheet_name='SOP8-2BySeg', index=False)
 
             messageTime = timeFun()
-            scriptMsg = ("Successfully Exported Table 8-2 to: " + outFull + " - " + messageTime)
+            scriptMsg = ("Successfully Exported Table 8-2BySeg to: " + outFull + " - " + messageTime)
             print(scriptMsg)
 
             logFile = open(logFileName, "a")
             logFile.write(scriptMsg + "\n")
             logFile.close()
-
-
 
             return "success function", outDF
 
