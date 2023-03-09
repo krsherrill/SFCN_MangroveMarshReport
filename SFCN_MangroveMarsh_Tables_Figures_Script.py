@@ -35,21 +35,21 @@ confidence = 0.95
 #Directory Information
 outputDir = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\analysis\Python\2020'  #Output Directory
 workspace = r'C:\SFCN\Monitoring\Periphyton\Data\HY2021\Tp\workspace'  # Workspace Folder
+monitoringYear = 2020  #Monitoring Year of Mangrove Marsh data being processing
 
 #Get Current Date
 from datetime import date
 dateString = date.today().strftime("%Y%m%d")
-strYear = date.today().strftime("%Y")
 
 #Define Output Name for log file
-outName = "MangroveMarsh_AnnualTablesFigs_" + strYear + "_" + dateString  # Name given to the exported pre-processed
+outName = "MangroveMarsh_AnnualTablesFigs_" + str(monitoringYear) + "_" + dateString  # Name given to the exported pre-processed
+outPDF = outputDir + "\\" + outName + ".pdf"
 
 #Workspace Location
 workspace = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\analysis\Python\workspace'
 
 #Logifile name
 logFileName = workspace + "\\" + outName + "_logfile.txt"
-
 
 #######################################
 ## Below are paths which are hard coded
@@ -67,6 +67,8 @@ from scipy.stats import t
 
 import matplotlib as mp
 import matplotlib.pyplot as plt
+#Import PdfPages from MatplotLib
+from matplotlib.backends.backend_pdf import PdfPages
 
 import pyodbc
 pyodbc.pooling = False  #So you can close pydobxthe connection
@@ -74,7 +76,6 @@ pyodbc.pooling = False  #So you can close pydobxthe connection
 #Imort PdfPages from MatplotLib
 from matplotlib.backends.backend_pdf import PdfPages
 ##################################
-
 
 ##################################
 # Checking for directories and create Logfile
@@ -107,7 +108,7 @@ def main():
         #Functions for Table 8-1
         ########################
         #Pull Data from Database for table 'tbl_MarkerData'
-        outVal = defineRecords_MarkerData(inDB)
+        outVal = defineRecords_MarkerData()
         if outVal[0].lower() != "success function":
             print("WARNING - Function defineRecords_MarkerData - Failed - Exiting Script")
             exit()
@@ -125,11 +126,11 @@ def main():
             outDF2 = outVal[1]
 
         ########################
-        # Functions for Table 8-2  - Species Data by Transect.
+        #Functions for Table 8-2  - Species Data by Transect and Point (two tables).
         ########################
 
         #Summarize via a CrossTab/Pivot Table the Average Vegetation By Segment, Community Type and Vegetation Type (Scale is Segment - multiple points)
-        outVal = defineRecords_VegCoverBySegment(inDB)
+        outVal = defineRecords_VegCoverBySegment()
         if outVal[0].lower() != "success function":
             print("WARNING - Function defineRecords_VegCoverBySegment - Failed - Exiting Script")
             exit()
@@ -138,7 +139,7 @@ def main():
             outDF = outVal[1]
 
         #Summarize via a CrossTab/Pivot Table the Sum Vegetation By Location Name (i.e. Point on Segment), Community Type and Vegetation Type (Scale is Point - single value)
-        outVal = defineRecords_VegCoverByPoint(inDB)
+        outVal = defineRecords_VegCoverByPoint()
         if outVal[0].lower() != "success function":
             print("WARNING - Function defineRecords_VegCoverByPoint - Failed - Exiting Script")
             exit()
@@ -153,11 +154,43 @@ def main():
         logFile.write(scriptMsg + "\n")
         logFile.close()
 
+        ########################
+        # Functions for Figure 8-3  - Marker Point Stratum percentages by Marsh and Mangrove Side - Data from table  'tbl_MarkerData'
+        ########################
+
+        #Pull Stratum Cover Data by point in 'tbl_MarkerData'
+        outVal = defineRecords_CoverByStratum()
+        if outVal[0].lower() != "success function":
+            print("WARNING - Function defineRecords_CoverByStratum - Failed - Exiting Script")
+            exit()
+        else:
+            print("Success - Function defineRecords_CoverByStratum")
+            outDF = outVal[1]
+
+        #Figures for Marker Point Stratum
+        outVal = figure_CoverByStratum(outDF)
+        if outVal.lower() != "success function":
+            print("WARNING - Function figure_CoverByStratum - Failed - Exiting Script")
+            exit()
+        else:
+            print("Success - Function figure_CoverByStratum")
+
+
+
+        messageTime = timeFun()
+        scriptMsg = "Successfully Finished Processing - SFCN_MangroveMash_Tables_Figures - " + messageTime
+        print(scriptMsg)
+        logFile = open(logFileName, "a")
+        logFile.write(scriptMsg + "\n")
+        logFile.close()
+
+
+
 
     except:
 
         messageTime = timeFun()
-        scriptMsg = "SCFN_MangroveMarsh_Tables_Figures.py - " + messageTime
+        scriptMsg = "WARNING Script Failed - " + messageTime
         print (scriptMsg)
         logFile = open(logFileName, "a")
         logFile.write(scriptMsg + "\n")
@@ -313,7 +346,7 @@ def calc_CI(inDF, confidence):
 
 
 # Summarize via a CrossTab/Pivot Table the Sum Vegetation By Location Name (i.e. Point on Segment), Community Type and Vegetation Type (Scale is Point - single value)
-def defineRecords_VegCoverByPoint(inDF):
+def defineRecords_VegCoverByPoint():
     try:
         inQuery = "TRANSFORM Sum(tbl_MarkerData_Vegetation.PercentCover) AS SumOfPercentCover"\
             " SELECT tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
@@ -365,7 +398,7 @@ def defineRecords_VegCoverByPoint(inDF):
 
 #Extract Mangrove Marsh Distance Records table vegetation cover records - Pivot/Cross Tab by Community Type (Marsh or Mangrove), Vegetation Type Shrub, Herb, Tree, and Scientific Name
 #Records for table SOP8-2, export to the output Excel File
-def defineRecords_VegCoverBySegment(inDF):
+def defineRecords_VegCoverBySegment():
     try:
         inQuery = "TRANSFORM Avg(tbl_MarkerData_Vegetation.PercentCover) AS AvgOfPercentCover"\
             " SELECT tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
@@ -414,9 +447,95 @@ def defineRecords_VegCoverBySegment(inDF):
         traceback.print_exc(file=sys.stdout)
         return "Failed function - 'defineRecords'"
 
+#Create Mark Point Stratum Figures - Marsh and Mangrove
+def figure_CoverByStratum(inDF):
+    try:
+
+        # Open PDF to be copied to
+        pdf = PdfPages(outPDF)
+
+        #Marsh DataFrame and Figure
+        # Subset to marshDF fields
+        marshDF = inDF.loc[:,('Location_Name', 'MangroveSide_Cover_Herb', 'MangroveSide_Cover_Shrub', 'MangroveSide_Cover_Tree')]
+        # Rename Fields
+        marshDF.rename(columns={"MangroveSide_Cover_Tree": "Tree", "MangroveSide_Cover_Shrub": "Shrub", "MangroveSide_Cover_Herb": "Herb"}, inplace=True)
+        # Set Index
+        marshDF.set_index('Location_Name', inplace=True)
+
+        #############
+        #Marsh Figure
+        #############
+
+        marshDF.plot.bar(stacked=True, title="Marsh Side", xlabel="Marker Points within Region", ylabel="Absolute Percent Cover (%)", color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'})
+        #ax.legend([Tree,Herb,Shrub],['Tree','Herb','Shrub'])
+        plt.legend(loc='upper right')
+        figure = mp.pyplot.gcf()
+        # Set Fig Size
+        figure.set_size_inches(10, 7.5)
+        pdf.savefig(figure)
+        del (figure)
+
+        pdf.close()
+
+        messageTime = timeFun()
+        scriptMsg = "Successfully Exported Figure - Marsh Side - to:" + outPDF + " - " + messageTime
+        print(scriptMsg)
+        logFile = open(logFileName, "a")
+        logFile.write(scriptMsg + "\n")
+        logFile.close()
+
+
+        messageTime = timeFun()
+        scriptMsg = "Success:  figure_CoverByStratum" + messageTime
+        print(scriptMsg)
+
+
+        return "success function"
+
+    except:
+        messageTime = timeFun()
+        print("Error on figure_CoverByStratum Function - " + messageTime)
+        traceback.print_exc(file=sys.stdout)
+        return "Failed function - 'defineRecords_CoverByStratum'"
+
+
+
+
+
+#Pull Cover By Stratum and Community type in table 'tbl_MarkerData'
+def defineRecords_CoverByStratum():
+    try:
+        inQuery = "SELECT tbl_Locations.Location_ID, tbl_Locations.Order_ID, tbl_Locations.Location_Name, tbl_Event_Group.Start_Date, tbl_MarkerData.MangroveSide_Cover_Overall,"\
+                " tbl_MarkerData.MangroveSide_Cover_Tree, tbl_MarkerData.MangroveSide_Cover_Shrub, tbl_MarkerData.MangroveSide_Cover_Herb, tbl_MarkerData.MarshSide_Cover_Overall,"\
+                " tbl_MarkerData.MarshSide_Cover_Tree, tbl_MarkerData.MarshSide_Cover_Shrub, tbl_MarkerData.MarshSide_Cover_Herb"\
+                " FROM tbl_Locations INNER JOIN ((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID) AND (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID))"\
+                " INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID) AND (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)) ON tbl_Locations.Location_ID = tbl_Events.Location_ID"\
+                " WHERE (((tbl_Events.Event_Type)='Marker Visit')) ORDER BY tbl_Locations.Order_ID, tbl_Locations.Location_Name, tbl_Event_Group.Start_Date;"
+
+        outVal = connect_to_AcessDB(inQuery, inDB)
+        if outVal[0].lower() != "success function":
+            messageTime = timeFun()
+            print("WARNING - Function defineRecords_CoverByStratum - " + messageTime + " - Failed - Exiting Script")
+            exit()
+        else:
+
+            outDF = outVal[1]
+            messageTime = timeFun()
+            scriptMsg = "Success:  defineRecords_CoverByStratum" + messageTime
+            print(scriptMsg)
+
+            return "success function", outDF
+
+    except:
+        messageTime = timeFun()
+        print("Error on defineRecords_CoverByStratum Function - " + messageTime)
+        traceback.print_exc(file=sys.stdout)
+        return "Failed function - 'defineRecords_CoverByStratum'"
+
+
 
 #Extract Mangrove Marsh Distance Records table 'tbl_MarkerData' where Event Type = 'Marker Visit'
-def defineRecords_MarkerData(inDF):
+def defineRecords_MarkerData():
     try:
         inQuery = "SELECT tbl_Event_Group.Event_Group_ID, tbl_Event_Group.Event_Group_Name, tbl_Event_Group.Start_Date, tbl_Event_Group.End_Date, tbl_Event_Group.Assessment, tbl_Events.Event_Type,"\
                 " tbl_Events.Location_ID, tbl_Locations.Segment, tbl_Locations.Location_Name, tbl_MarkerData.Distance, tbl_MarkerData.Method"\
