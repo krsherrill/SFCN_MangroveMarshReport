@@ -27,7 +27,7 @@
 #Define Inpurt Parameters
 
 #Mangrove Marsh Access Database and location
-inDB = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\data\SFCN_Mangrove_Marsh_Ecotone_tabular_20230202.mdb'
+inDB = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\data\SFCN_Mangrove_Marsh_Ecotone_tabular_20230309.mdb'
 
 #Confidence Interval
 confidence = 0.95
@@ -58,7 +58,7 @@ logFileName = workspace + "\\" + outName + "_logfile.txt"
 import pandas as pd
 import sys
 from datetime import date
-from datetime import datetime
+
 import os
 
 import traceback
@@ -67,7 +67,6 @@ from scipy.stats import t
 
 import matplotlib as mp
 import matplotlib.pyplot as plt
-#Import PdfPages from MatplotLib
 from matplotlib.backends.backend_pdf import PdfPages
 
 import pyodbc
@@ -123,29 +122,18 @@ def main():
             exit()
         else:
             print("Success - Function SummarizeFigure8_1")
-            outDF2 = outVal[1]
 
         ########################
-        #Functions for Table 8-2  - Species Data by Transect and Point (two tables).
+        #Functions for Table 8-2  - Absolute Cover Species Data by Transect and Point By Region
         ########################
-
-        #Summarize via a CrossTab/Pivot Table the Average Vegetation By Segment, Community Type and Vegetation Type (Scale is Segment - multiple points)
-        outVal = defineRecords_VegCoverBySegment()
-        if outVal[0].lower() != "success function":
-            print("WARNING - Function defineRecords_VegCoverBySegment - Failed - Exiting Script")
-            exit()
-        else:
-            print("Success - Function defineRecords_VegCoverBySegment")
-            outDF = outVal[1]
 
         #Summarize via a CrossTab/Pivot Table the Sum Vegetation By Location Name (i.e. Point on Segment), Community Type and Vegetation Type (Scale is Point - single value)
-        outVal = defineRecords_VegCoverByPoint()
+        outVal = defineRecords_VegCoverByPointAbsolute()
         if outVal[0].lower() != "success function":
-            print("WARNING - Function defineRecords_VegCoverByPoint - Failed - Exiting Script")
+            print("WARNING - Function defineRecords_VegCoverByPointAbsolute - Failed - Exiting Script")
             exit()
         else:
-            print("Success - Function defineRecords_VegCoverByPoint")
-            outDF = outVal[1]
+            print("Success - Function defineRecords_VegCoverByPointAbsolute")
 
         messageTime = timeFun()
         scriptMsg = "Successfully Finished Processing - SFCN_MangroveMash_Tables_Figures - " + messageTime
@@ -220,13 +208,13 @@ def SummarizeFigure8_1(inDF):
     try:
 
         # Define Average Distance Meters
-        out_GroupByMean = inDF.groupby(['Event_Group_ID', 'Segment']).mean()
+        out_GroupByMean = inDF.groupby(['Event_Group_ID', 'Region', 'Segment']).mean()
         outDf_GroupByMean = out_GroupByMean.reset_index()
         # Rename
         outDf_GroupByMean.rename(columns={'Distance': 'AverageDist_M'}, inplace=True)
 
         # Create output DataFrame - will be joining to this
-        outDf_8pt1 = outDf_GroupByMean[['Event_Group_ID', 'Segment', 'AverageDist_M']]
+        outDf_8pt1 = outDf_GroupByMean[['Event_Group_ID', 'Region', 'Segment', 'AverageDist_M']]
 
         # Define Standard Error
         out_GroupBySE = inDF.groupby(['Event_Group_ID', 'Segment']).sem()
@@ -345,107 +333,67 @@ def calc_CI(inDF, confidence):
         return "Failed function - 'calc_CI95'"
 
 
-# Summarize via a CrossTab/Pivot Table the Sum Vegetation By Location Name (i.e. Point on Segment), Community Type and Vegetation Type (Scale is Point - single value)
-def defineRecords_VegCoverByPoint():
+# Summarize via a CrossTab/Pivot Table the Absolute Cover By Region, Community, Strata and Taxon across point locations
+#Export By Region
+def defineRecords_VegCoverByPointAbsolute():
     try:
-        inQuery = "TRANSFORM Sum(tbl_MarkerData_Vegetation.PercentCover) AS SumOfPercentCover"\
-            " SELECT tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
-            " FROM tbl_Locations INNER JOIN (((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)"\
-            " AND (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)) INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)"\
-            " AND (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)) INNER JOIN (tbl_MarkerData_Vegetation LEFT JOIN tlu_Vegetation ON tbl_MarkerData_Vegetation.SpeciesCode"\
-            " = tlu_Vegetation.SpeciesCode) ON (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID) AND (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID))"\
-            " ON tbl_Locations.Location_ID = tbl_Events.Location_ID WHERE ((Not (tbl_MarkerData_Vegetation.PercentCover) Is Null) AND ((tbl_Events.Event_Type)='Marker Visit'))" \
-            " GROUP BY tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName" \
-            " PIVOT tbl_Locations.Location_Name;"
 
-        outVal = connect_to_AcessDB(inQuery, inDB)
-        if outVal[0].lower() != "success function":
-            messageTime = timeFun()
-            print("WARNING - Function defineRecords_VegCoverBySegment - " + messageTime + " - Failed - Exiting Script")
-            exit()
-        else:
+        dateString = date.today().strftime("%Y%m%d")
+        # Process By Region
+        regionlList = ['Turner River', 'Shark Slough', 'Taylor Slough']
+        for count, region in enumerate(regionlList):
 
-            outDF = outVal[1]
-            messageTime = timeFun()
-            scriptMsg = "Success:  defineRecords_VegCoverBySegment" + messageTime
-            print(scriptMsg)
+            inQuery = "TRANSFORM Sum(IIf([VegetationType]='Tree' And [CommunityType]='Mangrove',([MangroveSide_Cover_Overall])*([MangroveSide_Cover_Tree]/100)*([PercentCover]/100),IIf([VegetationType]='Shrub' And"\
+                " [CommunityType]='Mangrove',([MangroveSide_Cover_Overall])*([MangroveSide_Cover_Shrub]/100)*([PercentCover]/100),IIf([VegetationType]='Herb' And"\
+                " [CommunityType]='Mangrove',([MangroveSide_Cover_Overall])*([MangroveSide_Cover_Herb]/100)*([PercentCover]/100),IIf([VegetationType]='Tree' And"\
+                " [CommunityType]='Marsh',([MarshSide_Cover_Overall])*([MarshSide_Cover_Tree]/100)*([PercentCover]/100),IIf([VegetationType]='Shrub' And"\
+                " [CommunityType]='Marsh',([MarshSide_Cover_Overall])*([MarshSide_Cover_Shrub]/100)*([PercentCover]/100),IIf([VegetationType]='Herb' And"\
+                " [CommunityType]='Marsh',([MarshSide_Cover_Overall])*([MarshSide_Cover_Herb]/100)*([PercentCover]/100),-999))))))) AS AbsolutePercCover"\
+                " SELECT tbl_Locations.Region, tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
+                " FROM tbl_Locations INNER JOIN (((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID) AND"\
+                " (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)) INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID) AND"\
+                " (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)) INNER JOIN (tbl_MarkerData_Vegetation LEFT JOIN tlu_Vegetation ON tbl_MarkerData_Vegetation.SpeciesCode = tlu_Vegetation.SpeciesCode)"\
+                " ON (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID) AND (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID)) ON tbl_Locations.Location_ID"\
+                " = tbl_Events.Location_ID WHERE ((Not (tbl_MarkerData_Vegetation.PercentCover) Is Null) AND ((tbl_Events.Event_Type)='Marker Visit') AND ((tbl_Locations.Region)= '" + region + "'))"\
+                " GROUP BY tbl_Locations.Region, tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
+                " ORDER BY tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
+                " PIVOT tbl_Locations.Location_Name;"
 
-            # Export Table to Excel
-            dateString = date.today().strftime("%Y%m%d")
-            # Define Export .csv file
-            outFull = outputDir + "\MangroveMarsh_Export_" + dateString + ".xlsx"
 
-            #Append DataFrame to existing excel file
-            with pd.ExcelWriter(outFull, mode='a', engine="openpyxl") as writer:
-                outDF.to_excel(writer, sheet_name='SOP8-2ByPoint', index=False)
+            outVal = connect_to_AcessDB(inQuery, inDB)
+            if outVal[0].lower() != "success function":
+                messageTime = timeFun()
+                print("WARNING - Function defineRecords_VegCoverBySegment - " + messageTime + " - Failed - Exiting Script")
+                exit()
+            else:
 
-            messageTime = timeFun()
-            scriptMsg = ("Successfully Exported Table 8-2ByPoint to: " + outFull + " - " + messageTime)
-            print(scriptMsg)
+                outDF = outVal[1]
+                messageTime = timeFun()
+                scriptMsg = "Success:  defineRecords_VegCoverBySegment" + messageTime
+                print(scriptMsg)
 
-            logFile = open(logFileName, "a")
-            logFile.write(scriptMsg + "\n")
-            logFile.close()
+                #Define Export .csv file
+                outFull = outputDir + "\MangroveMarsh_Export_" + dateString + ".xlsx"
 
-            return "success function", outDF
+                #Append DataFrame to existing excel file
+                with pd.ExcelWriter(outFull, mode='a', engine="openpyxl") as writer:
+                    outDF.to_excel(writer, sheet_name='SOP8-2-AbsCov-' + region, index=False)
+
+                messageTime = timeFun()
+                scriptMsg = ("Successfully Exported Table 8-2-AbsCov - " + region + " - to: " + outFull + " - " + messageTime)
+                print(scriptMsg)
+
+                logFile = open(logFileName, "a")
+                logFile.write(scriptMsg + "\n")
+                logFile.close()
+
+        return "success function", outDF
 
     except:
         messageTime = timeFun()
-        print("Error on defineRecords_VegCoverByPoint Function - " + messageTime)
+        print("Error on defineRecords_VegCoverByPointAbsolute Function - " + messageTime)
         traceback.print_exc(file=sys.stdout)
-        return "Failed function - 'defineRecords'"
-
-
-#Extract Mangrove Marsh Distance Records table vegetation cover records - Pivot/Cross Tab by Community Type (Marsh or Mangrove), Vegetation Type Shrub, Herb, Tree, and Scientific Name
-#Records for table SOP8-2, export to the output Excel File
-def defineRecords_VegCoverBySegment():
-    try:
-        inQuery = "TRANSFORM Avg(tbl_MarkerData_Vegetation.PercentCover) AS AvgOfPercentCover"\
-            " SELECT tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
-            " FROM tbl_Locations INNER JOIN (((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)" \
-            " AND (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID)) INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID) AND (tbl_Events.Event_ID"\
-            " = tbl_MarkerData.Event_ID)) INNER JOIN (tbl_MarkerData_Vegetation LEFT JOIN tlu_Vegetation ON tbl_MarkerData_Vegetation.SpeciesCode = tlu_Vegetation.SpeciesCode) ON"\
-            " (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID) AND (tbl_MarkerData.Point_ID = tbl_MarkerData_Vegetation.Point_ID)) ON tbl_Locations.Location_ID = tbl_Events.Location_ID"\
-            " WHERE ((Not (tbl_MarkerData_Vegetation.PercentCover) Is Null) AND ((tbl_Events.Event_Type)='Marker Visit'))"\
-            " GROUP BY tbl_MarkerData_Vegetation.CommunityType, tbl_MarkerData_Vegetation.VegetationType, tlu_Vegetation.ScientificName"\
-            " PIVOT Int(Replace([Segment],'Segment_',''));"\
-
-        outVal = connect_to_AcessDB(inQuery, inDB)
-        if outVal[0].lower() != "success function":
-            messageTime = timeFun()
-            print("WARNING - Function defineRecords_VegCoverBySegment - " + messageTime + " - Failed - Exiting Script")
-            exit()
-        else:
-
-            outDF = outVal[1]
-            messageTime = timeFun()
-            scriptMsg = "Success:  defineRecords_VegCoverBySegment" + messageTime
-            print(scriptMsg)
-
-            # Export Table to Excel
-            dateString = date.today().strftime("%Y%m%d")
-            # Define Export .csv file
-            outFull = outputDir + "\MangroveMarsh_Export_" + dateString + ".xlsx"
-
-            #Append DataFrame to existing excel file
-            with pd.ExcelWriter(outFull, mode='a', engine="openpyxl") as writer:
-                outDF.to_excel(writer, sheet_name='SOP8-2BySeg', index=False)
-
-            messageTime = timeFun()
-            scriptMsg = ("Successfully Exported Table 8-2BySeg to: " + outFull + " - " + messageTime)
-            print(scriptMsg)
-
-            logFile = open(logFileName, "a")
-            logFile.write(scriptMsg + "\n")
-            logFile.close()
-
-            return "success function", outDF
-
-    except:
-        messageTime = timeFun()
-        print("Error on defineRecords_VegCoverBySegment Function - " + messageTime)
-        traceback.print_exc(file=sys.stdout)
-        return "Failed function - 'defineRecords'"
+        return "Failed function - 'defineRecords_VegCoverByPointAbsolute'"
 
 #Create Mark Point Stratum Figures - Marsh and Mangrove
 def figure_CoverByStratum(inDF):
@@ -538,7 +486,7 @@ def defineRecords_CoverByStratum():
 def defineRecords_MarkerData():
     try:
         inQuery = "SELECT tbl_Event_Group.Event_Group_ID, tbl_Event_Group.Event_Group_Name, tbl_Event_Group.Start_Date, tbl_Event_Group.End_Date, tbl_Event_Group.Assessment, tbl_Events.Event_Type,"\
-                " tbl_Events.Location_ID, tbl_Locations.Segment, tbl_Locations.Location_Name, tbl_MarkerData.Distance, tbl_MarkerData.Method"\
+                " tbl_Events.Location_ID, tbl_Locations.Region,tbl_Locations.Segment, tbl_Locations.Location_Name, tbl_MarkerData.Distance, tbl_MarkerData.Method"\
                 " FROM tbl_Locations INNER JOIN ((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID) AND (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID))"\
                 " INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID) AND (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)) ON tbl_Locations.Location_ID = tbl_Events.Location_ID"\
                 " WHERE tbl_Events.Event_Type = 'Marker Visit' ORDER BY tbl_Locations.Segment, tbl_Locations.Location_Name, tbl_Events.Event_Type;"\
