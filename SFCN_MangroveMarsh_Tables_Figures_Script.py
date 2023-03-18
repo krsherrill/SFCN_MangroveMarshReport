@@ -27,7 +27,7 @@
 #Define Inpurt Parameters
 
 #Mangrove Marsh Access Database and location
-inDB = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\data\SFCN_Mangrove_Marsh_Ecotone_tabular_20230309.mdb'
+inDB = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\data\SFCN_Mangrove_Marsh_Ecotone_tabular_20230318.mdb'
 
 #Confidence Interval
 confidence = 0.95
@@ -155,7 +155,7 @@ def main():
             print("Success - Function defineRecords_CoverByStratum")
             outDF = outVal[1]
 
-        #Figures for Marker Point Stratum
+        #Figures for Marker Point Stratum By Region - Stacked Top Marsh, Botom Mangrove
         outVal = figure_CoverByStratum(outDF)
         if outVal.lower() != "success function":
             print("WARNING - Function figure_CoverByStratum - Failed - Exiting Script")
@@ -399,43 +399,103 @@ def defineRecords_VegCoverByPointAbsolute():
 def figure_CoverByStratum(inDF):
     try:
 
-        # Open PDF to be copied to
+        #Open PDF to be copied to
         pdf = PdfPages(outPDF)
 
-        #Marsh DataFrame and Figure
-        # Subset to marshDF fields
-        marshDF = inDF.loc[:,('Location_Name', 'MangroveSide_Cover_Herb', 'MangroveSide_Cover_Shrub', 'MangroveSide_Cover_Tree')]
-        # Rename Fields
-        marshDF.rename(columns={"MangroveSide_Cover_Tree": "Tree", "MangroveSide_Cover_Shrub": "Shrub", "MangroveSide_Cover_Herb": "Herb"}, inplace=True)
-        # Set Index
-        marshDF.set_index('Location_Name', inplace=True)
-
-        #############
-        #Marsh Figure
-        #############
-
-        marshDF.plot.bar(stacked=True, title="Marsh Side", xlabel="Marker Points within Region", ylabel="Absolute Percent Cover (%)", color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'})
-        #ax.legend([Tree,Herb,Shrub],['Tree','Herb','Shrub'])
-        plt.legend(loc='upper right')
-        figure = mp.pyplot.gcf()
-        # Set Fig Size
-        figure.set_size_inches(10, 7.5)
-        pdf.savefig(figure)
-        del (figure)
-
-        pdf.close()
-
-        messageTime = timeFun()
-        scriptMsg = "Successfully Exported Figure - Marsh Side - to:" + outPDF + " - " + messageTime
-        print(scriptMsg)
-        logFile = open(logFileName, "a")
-        logFile.write(scriptMsg + "\n")
-        logFile.close()
+        # Process By Region
+        regionlList = ['Turner River', 'Shark Slough', 'Taylor Slough']
+        for count, region in enumerate(regionlList):
 
 
-        messageTime = timeFun()
-        scriptMsg = "Success:  figure_CoverByStratum" + messageTime
-        print(scriptMsg)
+            #Subset By Region
+            outDFSub = outDF[outDF['Region'] == region]
+
+            ###########################
+            #Marsh DataFrame and Figure
+            ###########################
+            #Subset to marshDF fields
+            marshDF = outDFSub.loc[:,('Region', 'Location_Name', 'MarshSide_Cover_Overall', 'AbsCover_Marsh_Tree', 'AbsCover_Marsh_Shrub','AbsCover_Marsh_Herb')]
+            #Rename Fields
+            marshDF.rename(columns={"AbsCover_Marsh_Tree": "Tree", "AbsCover_Marsh_Shrub": "Shrub", "AbsCover_Marsh_Herb": "Herb"}, inplace=True)
+
+            #Set Index
+            marshDF.set_index('Location_Name', inplace=True)
+
+            #############
+            #Marsh Figure
+            #############
+
+            marshDF.plot.bar(stacked=True, title="Marsh Side", xlabel="Marker Points within Region", ylabel="Absolute Percent Cover (%)", color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'})
+            #ax.legend([Tree,Herb,Shrub],['Tree','Herb','Shrub'])
+            plt.legend(loc='upper right')
+            figure = mp.pyplot.gcf()
+            # Set Fig Size
+            figure.set_size_inches(10, 7.5)
+            pdf.savefig(figure)
+            del (figure)
+
+
+            ##########################
+            # Mangrove DataFrame and Figure
+            ###########################
+            # Subset to marshDF fields
+            mangroveDF = outDFSub.loc[:,('Region', 'Location_Name', 'MangroveSide_Cover_Overall', 'AbsCover_Mangrove_Tree', 'AbsCover_Mangrove_Shrub','AbsCover_Mangrove_Herb')]
+            # Rename Fields
+            mangroveDF.rename(columns={"AbsCover_Mangrove_Tree": "Tree", "AbsCover_Mangrove_Shrub": "Shrub", "AbsCover_Mangrove_Herb": "Herb"}, inplace=True)
+
+            # Set Index
+            mangroveDF.set_index('Location_Name', inplace=True)
+
+            #############
+            # Mangrove Figure
+            #############
+
+            marshDF.plot.bar(stacked=True, title="Mangrove Side", xlabel="Marker Points within Region",
+                             ylabel="Absolute Percent Cover (%)",
+                             color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'})
+            # ax.legend([Tree,Herb,Shrub],['Tree','Herb','Shrub'])
+            plt.legend(loc='upper right')
+            figure = mp.pyplot.gcf()
+            # Set Fig Size
+            figure.set_size_inches(10, 7.5)
+            pdf.savefig(figure)
+            del (figure)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            pdf.close()
+
+            messageTime = timeFun()
+            scriptMsg = "Successfully Exported Figure - Marsh Side - to:" + outPDF + " - " + messageTime
+            print(scriptMsg)
+            logFile = open(logFileName, "a")
+            logFile.write(scriptMsg + "\n")
+            logFile.close()
+
+
+
+
+
+
+
+
+            messageTime = timeFun()
+            scriptMsg = "Success:  figure_CoverByStratum" + messageTime
+            print(scriptMsg)
 
 
         return "success function"
@@ -450,15 +510,21 @@ def figure_CoverByStratum(inDF):
 
 
 
-#Pull Cover By Stratum and Community type in table 'tbl_MarkerData'
+#Calculate Absolute Cover By Stratum and Community type in table 'tbl_MarkerData'
 def defineRecords_CoverByStratum():
     try:
-        inQuery = "SELECT tbl_Locations.Location_ID, tbl_Locations.Order_ID, tbl_Locations.Location_Name, tbl_Event_Group.Start_Date, tbl_MarkerData.MangroveSide_Cover_Overall,"\
-                " tbl_MarkerData.MangroveSide_Cover_Tree, tbl_MarkerData.MangroveSide_Cover_Shrub, tbl_MarkerData.MangroveSide_Cover_Herb, tbl_MarkerData.MarshSide_Cover_Overall,"\
-                " tbl_MarkerData.MarshSide_Cover_Tree, tbl_MarkerData.MarshSide_Cover_Shrub, tbl_MarkerData.MarshSide_Cover_Herb"\
-                " FROM tbl_Locations INNER JOIN ((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID) AND (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID))"\
-                " INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID) AND (tbl_Events.Event_ID = tbl_MarkerData.Event_ID)) ON tbl_Locations.Location_ID = tbl_Events.Location_ID"\
-                " WHERE (((tbl_Events.Event_Type)='Marker Visit')) ORDER BY tbl_Locations.Order_ID, tbl_Locations.Location_Name, tbl_Event_Group.Start_Date;"
+
+        inQuery = "SELECT tbl_Locations.Location_ID, tbl_Locations.Order_ID,  tbl_Locations.Region, tbl_Locations.Location_Name,  tbl_Events.Event_ID, tbl_Event_Group.Start_Date, tbl_MarkerData.MangroveSide_Cover_Overall,"\
+                " tbl_MarkerData.MangroveSide_Cover_Tree, tbl_MarkerData.MangroveSide_Cover_Shrub, tbl_MarkerData.MangroveSide_Cover_Herb, [MangroveSide_Cover_Overall]*([MangroveSide_Cover_Tree]/100)"\
+                " AS AbsCover_Mangrove_Tree, [MangroveSide_Cover_Overall]*([MangroveSide_Cover_Shrub]/100) AS AbsCover_Mangrove_Shrub, [MangroveSide_Cover_Overall]*([MangroveSide_Cover_Herb]/100)"\
+                " AS AbsCover_Mangrove_Herb, tbl_MarkerData.MarshSide_Cover_Overall, tbl_MarkerData.MarshSide_Cover_Tree, tbl_MarkerData.MarshSide_Cover_Shrub, tbl_MarkerData.MarshSide_Cover_Herb,"\
+                " [MarshSide_Cover_Overall]*([MarshSide_Cover_Tree]/100) AS AbsCover_Marsh_Tree, [MarshSide_Cover_Overall]*([MarshSide_Cover_Shrub]/100) AS AbsCover_Marsh_Shrub,"\
+                " [MarshSide_Cover_Overall]*([MarshSide_Cover_Herb]/100) AS AbsCover_Marsh_Herb"\
+                " FROM tbl_Locations INNER JOIN ((tbl_Event_Group INNER JOIN tbl_Events ON (tbl_Event_Group.Event_Group_ID = tbl_Events.Event_Group_ID) AND (tbl_Event_Group.Event_Group_ID"\
+                " = tbl_Events.Event_Group_ID)) INNER JOIN tbl_MarkerData ON (tbl_Events.Event_ID = tbl_MarkerData.Event_ID) AND (tbl_Events.Event_ID = tbl_MarkerData.Event_ID))"\
+                " ON tbl_Locations.Location_ID = tbl_Events.Location_ID WHERE (((tbl_Events.Event_Type)='Marker Visit')) ORDER BY tbl_Locations.Order_ID, tbl_Locations.Location_Name,"\
+                " tbl_Event_Group.Start_Date;"
+
 
         outVal = connect_to_AcessDB(inQuery, inDB)
         if outVal[0].lower() != "success function":
