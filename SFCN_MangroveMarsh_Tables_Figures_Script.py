@@ -395,7 +395,7 @@ def defineRecords_VegCoverByPointAbsolute():
         traceback.print_exc(file=sys.stdout)
         return "Failed function - 'defineRecords_VegCoverByPointAbsolute'"
 
-#Create Mark Point Stratum Figures - Marsh and Mangrove
+#Create  Figures - Absolute Cover By Region, By Community, By Strata
 def figure_CoverByStratum(inDF):
     try:
 
@@ -406,96 +406,61 @@ def figure_CoverByStratum(inDF):
         regionlList = ['Turner River', 'Shark Slough', 'Taylor Slough']
         for count, region in enumerate(regionlList):
 
-
             #Subset By Region
-            outDFSub = outDF[outDF['Region'] == region]
+            outDFSub = inDF[inDF['Region'] == region]
 
             ###########################
             #Marsh DataFrame and Figure
             ###########################
             #Subset to marshDF fields
-            marshDF = outDFSub.loc[:,('Region', 'Location_Name', 'MarshSide_Cover_Overall', 'AbsCover_Marsh_Tree', 'AbsCover_Marsh_Shrub','AbsCover_Marsh_Herb')]
+            marshDF = outDFSub.loc[:,('Location_Name', 'MarshSide_Cover_Overall', 'AbsCover_Marsh_Tree', 'AbsCover_Marsh_Shrub','AbsCover_Marsh_Herb')]
             #Rename Fields
             marshDF.rename(columns={"AbsCover_Marsh_Tree": "Tree", "AbsCover_Marsh_Shrub": "Shrub", "AbsCover_Marsh_Herb": "Herb"}, inplace=True)
 
             #Set Index
             marshDF.set_index('Location_Name', inplace=True)
 
-            #############
-            #Marsh Figure
-            #############
-
-            marshDF.plot.bar(stacked=True, title="Marsh Side", xlabel="Marker Points within Region", ylabel="Absolute Percent Cover (%)", color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'})
-            #ax.legend([Tree,Herb,Shrub],['Tree','Herb','Shrub'])
-            plt.legend(loc='upper right')
-            figure = mp.pyplot.gcf()
-            # Set Fig Size
-            figure.set_size_inches(10, 7.5)
-            pdf.savefig(figure)
-            del (figure)
-
-
-            ##########################
-            # Mangrove DataFrame and Figure
-            ###########################
-            # Subset to marshDF fields
-            mangroveDF = outDFSub.loc[:,('Region', 'Location_Name', 'MangroveSide_Cover_Overall', 'AbsCover_Mangrove_Tree', 'AbsCover_Mangrove_Shrub','AbsCover_Mangrove_Herb')]
+            #Subset to Mangrove fields
+            mangroveDF = outDFSub.loc[:, ('Location_Name', 'MangroveSide_Cover_Overall', 'AbsCover_Mangrove_Tree','AbsCover_Mangrove_Shrub', 'AbsCover_Mangrove_Herb')]
             # Rename Fields
             mangroveDF.rename(columns={"AbsCover_Mangrove_Tree": "Tree", "AbsCover_Mangrove_Shrub": "Shrub", "AbsCover_Mangrove_Herb": "Herb"}, inplace=True)
 
-            # Set Index
+            #Set Index
             mangroveDF.set_index('Location_Name', inplace=True)
 
-            #############
-            # Mangrove Figure
-            #############
+            ####################
+            #Create the Figures:
+            ####################
+            plt.figure(figsize=(8, 6))
+            ax1 = plt.subplot(2, 1, 1)
+            marshDF.plot.bar(stacked=True, title="Marsh Side - " + region, xlabel="Marker Points", ylabel="Absolute Percent Cover (%)", color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'}, ax=ax1)
+            lgd = plt.legend(['Tree', 'Shrub', 'Herb'], loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.grid(axis='y')
+            plt.ylim(0, 100)
+            plt.tight_layout(pad=0.4)
 
-            marshDF.plot.bar(stacked=True, title="Mangrove Side", xlabel="Marker Points within Region",
-                             ylabel="Absolute Percent Cover (%)",
-                             color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'})
-            # ax.legend([Tree,Herb,Shrub],['Tree','Herb','Shrub'])
-            plt.legend(loc='upper right')
+            ax2 = plt.subplot(2, 1, 2)
+            mangroveDF.plot.bar(stacked=True, title="Mangrove Side - " + region, xlabel="Marker Points", ylabel="Absolute Percent Cover (%)", color={'Shrub': 'red', 'Herb': 'turquoise', 'Tree': 'orange'}, ax=ax2)
+            lgd = plt.legend(['Tree', 'Shrub', 'Herb'], loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.grid(axis='y')
+            plt.ylim(0, 100)
+            plt.tight_layout(pad=0.4)
+
             figure = mp.pyplot.gcf()
-            # Set Fig Size
-            figure.set_size_inches(10, 7.5)
             pdf.savefig(figure)
-            del (figure)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            pdf.close()
 
             messageTime = timeFun()
-            scriptMsg = "Successfully Exported Figure - Marsh Side - to:" + outPDF + " - " + messageTime
+            scriptMsg = "Successfully Exported Figures Region:" + region + " - " + messageTime
             print(scriptMsg)
             logFile = open(logFileName, "a")
             logFile.write(scriptMsg + "\n")
             logFile.close()
 
+        pdf.close()
 
-
-
-
-
-
-
-            messageTime = timeFun()
-            scriptMsg = "Success:  figure_CoverByStratum" + messageTime
-            print(scriptMsg)
+        messageTime = timeFun()
+        scriptMsg = "Success:  figure_CoverByStratum" + messageTime
+        print(scriptMsg)
 
 
         return "success function"
