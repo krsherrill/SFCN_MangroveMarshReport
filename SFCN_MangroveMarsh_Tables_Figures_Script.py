@@ -1,30 +1,34 @@
-# ---------------------------------------------------------------------------
-# SFCN_MangroveMarsh_Tables_Figures
-# Description:  Routine to Summarize Mangrove Marsh Data including Output tables and Figures for annual reporting.
+###################################
+# SFCN_MangroveMarsh_Tables_Figures.py
+###################################
+# Description:  Routine to Summarize Mangrove Marsh Monitoring data including output tables and figures for annual reporting.
 
 # Code performs the following routines:
 # 1) Summaries the Event Average Distance from Ground Truth values.  This includes Averge, Standard Error, Confidence Interval for defined %, and Maximum and Minimum values
-# by event/segment fo the SOP 8 table 1 summary tables. Confidence Intervals are defined using a Student T Distribution with Student T defiend as: np.abs(t.ppf((1 - confidence) / 2, dof)).
+# by event/segment replicating the 'Mangrove-Marsh Ecotone Monitoring' SOP8-1 summary table. Confidence Intervals are defined using a Student T Distribution with Student T defiend as: np.abs(t.ppf((1 - confidence) / 2, dof)).
 
-# Logic can be added to define the confidence interval using a Boot Strapped estimate as well - not implemented as of 3/3/2023.
-# 2) Extract Mangrove Marsh Distance Records table vegetation cover records - Pivot/Cross Tab by Community Type (Marsh or Mangrove), Vegetation Type Shrub, Herb, Tree, and Scientific Name
-# #Records for table SOP8-2
+# 2) Summarize via a CrossTab/Pivot Table the Absolute Vegetation by Region, Location Name (i.e. Point on Segment), by Community Type, and by Taxon (Scale is Point - single value).
+# Routine replicates the 'Mangrove-Marsh Ecotone Monitoring' SOP8-2 summary table.
 
-# Dependences:
+# 3) Calculates the Absolute Cover By Region, By Community, By Strata - data is from table  'tbl_MarkerData'. Output replicates the 'Mangrove-Marsh Ecotone Monitoring' SOP8-3 summary Figure.
+
+# Output:
+# An excel spreadsheet with Tables SOP8-1 (i.e. Average Distance from Ground Truth Values), Tables SOP8-2 By region (three total) with the the Absolute Vegetation by Region, Location Name (i.e. Point on Segment),
+# by Community Type, and by Taxon, and a pdf file withe Figures SOP8-3 by region (three total) with the Absolute Cover By Region, By Community, By Strata.
+
+# Dependencies:
 # Python version 3.9
 # Pandas
 # Scipy
 
 # Python/Conda environment - py39
+# Created by: Kirk Sherrill - Data Manager South Florida Caribbean Network (Detail) - Inventory and Monitoring Division - National Park Service
+# Date Created: March 2023
 
-# Created by: Kirk Sherrill - Data Manager South Florida Caribbean Network (Detail) - Inventory and Monitoring Division National Park Service
-# Date Created: March 3rd, 2023
-
-
-###################################################
+#######################################
 # Start of Parameters requiring set up.
-###################################################
-#Define Inpurt Parameters
+#######################################
+#Define Inpurt Parameters:
 
 #Mangrove Marsh Access Database and location
 inDB = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\data\SFCN_Mangrove_Marsh_Ecotone_tabular_20230318.mdb'
@@ -52,7 +56,7 @@ workspace = r'C:\SFCN\Monitoring\Mangrove_Marsh_Ecotone\analysis\Python\workspac
 logFileName = workspace + "\\" + outName + "_logfile.txt"
 
 #######################################
-## Below are paths which are hard coded
+## Below are paths which are hard coded:
 #######################################
 #Import Required Libraries
 import pandas as pd
@@ -67,13 +71,11 @@ from scipy.stats import t
 
 import matplotlib as mp
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.backends.backend_pdf import PdfPages #Imort PdfPages from MatplotLib
 
 import pyodbc
-pyodbc.pooling = False  #So you can close pydobxthe connection
+pyodbc.pooling = False  #So you can close the pydobx connection
 
-#Imort PdfPages from MatplotLib
-from matplotlib.backends.backend_pdf import PdfPages
 ##################################
 
 ##################################
@@ -91,7 +93,6 @@ else:
     logFile = open(logFileName, "w")  # Creating index file if it doesn't exist
     logFile.close()
 #################################################
-##
 
 # Function to Get the Date/Time
 def timeFun():
@@ -127,7 +128,7 @@ def main():
         #Functions for Table 8-2  - Absolute Cover Species Data by Transect and Point By Region
         ########################
 
-        #Summarize via a CrossTab/Pivot Table the Sum Vegetation By Location Name (i.e. Point on Segment), Community Type and Vegetation Type (Scale is Point - single value)
+        #Summarize via a CrossTab/Pivot Table the Absolute Vegetation by Location Name (i.e. Point on Segment), by Community Type and Vegetation Type (Scale is Point - single value)
         outVal = defineRecords_VegCoverByPointAbsolute()
         if outVal[0].lower() != "success function":
             print("WARNING - Function defineRecords_VegCoverByPointAbsolute - Failed - Exiting Script")
@@ -143,7 +144,7 @@ def main():
         logFile.close()
 
         ########################
-        # Functions for Figure 8-3  - Marker Point Stratum percentages by Marsh and Mangrove Side - Data from table  'tbl_MarkerData'
+        # Functions for Figure 8-3  - Calculate the Absolute Cover By Region, By Community, By Strata - data is from table  'tbl_MarkerData'
         ########################
 
         #Pull Stratum Cover Data by point in 'tbl_MarkerData'
@@ -163,16 +164,12 @@ def main():
         else:
             print("Success - Function figure_CoverByStratum")
 
-
-
         messageTime = timeFun()
         scriptMsg = "Successfully Finished Processing - SFCN_MangroveMash_Tables_Figures - " + messageTime
         print(scriptMsg)
         logFile = open(logFileName, "a")
         logFile.write(scriptMsg + "\n")
         logFile.close()
-
-
 
 
     except:
@@ -184,9 +181,6 @@ def main():
         logFile.write(scriptMsg + "\n")
         traceback.print_exc(file=sys.stdout)
         logFile.close()
-
-
-
 
 #Function to define the Student’s t distribution
 def defineStudentT(dof):
@@ -200,7 +194,6 @@ def defineStudentT(dof):
         print(scriptMsg)
         traceback.print_exc(file=sys.stdout)
         return "Failed"
-
 
 #Summarize Mangrove Marsh Ecotone Values - Average Distance, Standard Error, Lower 95% Confidence Limit, Upper 95% Confidence Limit, Max and Min Values
 #Output DataFrame with the summary values by Segment
@@ -239,7 +232,6 @@ def SummarizeFigure8_1(inDF):
 
         #Create Degree of Freedom field (N-1)
         outDf_8pt1_j2['DOF'] = outDf_8pt1_j2['RecCount'] - 1
-
 
         ##################################
         #Calculate the Confidence Interval
@@ -302,7 +294,6 @@ def SummarizeFigure8_1(inDF):
         print("Error on SummarizeFigure8_1 Function - " + messageTime)
         traceback.print_exc(file=sys.stdout)
         return "Failed function - 'SummarizeFigure8_1'"
-
 
 
 #Calculate the Confidence Interval Upper 95% and Lower 95% usinga Sutdents T Distribution
@@ -472,9 +463,6 @@ def figure_CoverByStratum(inDF):
         return "Failed function - 'defineRecords_CoverByStratum'"
 
 
-
-
-
 #Calculate Absolute Cover By Stratum and Community type in table 'tbl_MarkerData'
 def defineRecords_CoverByStratum():
     try:
@@ -564,7 +552,6 @@ def connect_to_AcessDB(query, inDB):
         traceback.print_exc(file=sys.stdout)
         logFile.close()
         return "failed function"
-
 
 if __name__ == '__main__':
 
